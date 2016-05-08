@@ -396,16 +396,16 @@ PROCESS {
 	# Set dataset info
 	if ($dataset -eq "geonames") {
 		$csvfile = "$([Environment]::GetFolderPath('MyDocuments'))\geonames.csv"
-		$onedriveurl = "http://1drv.ms/1JoSB7i"
+		$onedriveurl = "https://www.dropbox.com/s/ans3gj9um88b1ko/Geonames.zip?dl=0&raw=1"
 	} elseif ($dataset -eq "supersmall") {
 		$csvfile = "$([Environment]::GetFolderPath('MyDocuments'))\supersmall.csv"
-		$onedriveurl = "http://1drv.ms/1YRAjCM"
+		$onedriveurl = "https://www.dropbox.com/s/on351ou8cr7l1ug/supersmall.zip?dl=0&raw=1"
 	} elseif ($dataset -eq "verylarge") {
 		$csvfile = "$([Environment]::GetFolderPath('MyDocuments'))\verylarge.csv"
 		$onedriveurl = "http://1drv.ms/1OA9iZw"
 	} else {
 		$csvfile = "$([Environment]::GetFolderPath('MyDocuments'))\customers.csv"
-		$onedriveurl = "http://1drv.ms/1kvOtqc"
+		$onedriveurl = "https://www.dropbox.com/s/9yo11kqix1tu4te/customers.zip?dl=0&raw=1"
 	}
 	
 	# Check for CSV
