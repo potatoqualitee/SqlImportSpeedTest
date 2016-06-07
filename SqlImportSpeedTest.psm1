@@ -78,7 +78,11 @@ Optional. Shows errors returned from the bulkinsert.
 
 .PARAMETER EnableStreaming
 Optional. Enables Streaming on SqlBulkCopy object. Doesn't usually have a positive impact.
-
+		
+.PARAMETER NoThreadReuse
+Optional. By default, this module wil set $Host.Runspace.ThreadOptions = "ReuseThread" which has given around a 10% increase in speed. To see what happens when threads aren't reused, specify -NoThreadReuse.
+	
+	
 .PARAMETER Force
 Optional. If you use the -Database parameter, it'll warn you that the database will be dropped and recreated, then prompt to confirm. If you use -Force, there will be no prompt.
 
@@ -86,8 +90,8 @@ Optional. If you use the -Database parameter, it'll warn you that the database w
 .NOTES 
 Author  : Chrissy LeMaire (@cl), netnerds.net
 Requires:     PowerShell Version 3.0, db creator privs on destination SQL Server
-DateUpdated: 2016-4-15
-Version: 0.7.2
+DateUpdated: 2016-6-5
+Version: 0.7.3
 
 .EXAMPLE   
 Test-SqlImportSpeed -SqlServer sqlserver2014a
@@ -132,6 +136,7 @@ param(
 	[string]$Threading="Multi",
 	[switch]$ShowErrors,
 	[switch]$EnableStreaming,
+	[switch]$NoThreadReuse,
 	[switch]$Force
 )
 
@@ -340,6 +345,7 @@ BEGIN {
 PROCESS {
 	
 	if ($append -eq $true) { $nodbdrop = $true }
+		
 	
 	switch ($threading) {
 		"Multi" { $apartmentstate = "MTA" }
@@ -482,9 +488,11 @@ PROCESS {
 	$pool.ApartmentState = $apartmentstate
 	$pool.CleanupInterval =  (New-TimeSpan -Minutes 1)
 	$pool.Open()
-	$runspaces =  [System.Collections.ArrayList]@()
-	
-	# This is the workhorse.
+	$runspaces = [System.Collections.ArrayList]@()
+		
+	if (!$NoThreadReuse) { $Host.Runspace.ThreadOptions = "ReuseThread" }
+		
+		# This is the workhorse.
 	$scriptblock = {
 	   Param (
 		[string]$connectionString,
@@ -576,36 +584,36 @@ PROCESS {
 	$pool.Dispose()
 	
 }
-
-END {
-	if ($secs -gt 0) {
-			$total = Get-Rowcount
-			
-			if ($total -ne 1000000 -and $total -ne 25000000) {
-				Write-Warning "Some rows were dropped."
+	
+	END
+	{
+		if ($secs -gt 0) {
+				$total = Get-Rowcount
+				
+				if ($total -ne 1000000 -and $total -ne 25000000) {
+					Write-Warning "Some rows were dropped."
+				}
+				# Write out stats for million row csv file
+				$rs = "{0:N0}" -f [int]($total / $secs)
+				$rm = "{0:N0}" -f [int]($total / $secs * 60)
+				$ram =  "{0:N2}" -f $((Get-Process -PID $pid).WorkingSet64/1GB)
+				$mill = "{0:N0}" -f $total
+				
+				if ($dataset -eq "verylarge") {
+					Write-Output "Memory usage is now at $ram GB, which can take up to 6 minutes to clear."
+					Write-Output "You can now run the following to clear memory:`n    1..3 | foreach { [System.GC]::Collect() }"
+				} else {
+					Write-Output "Collecting garbage"
+					Invoke-GarbageCollection
+				}
+				
+				Write-Output "$mill rows imported in $([math]::round($secs,2)) seconds ($rs rows/sec and $rm rows/min)"	
 			}
-			# Write out stats for million row csv file
-			$rs = "{0:N0}" -f [int]($total / $secs)
-			$rm = "{0:N0}" -f [int]($total / $secs * 60)
-			$ram =  "{0:N2}" -f $((Get-Process -PID $pid).WorkingSet64/1GB)
-			$mill = "{0:N0}" -f $total
-			
-			if ($dataset -eq "verylarge") {
-				Write-Output "Memory usage is now at $ram GB, which can take up to 6 minutes to clear."
-				Write-Output "You can now run the following to clear memory:`n    1..3 | foreach { [System.GC]::Collect() }"
-			} else {
-				Write-Output "Collecting garbage"
-				Invoke-GarbageCollection
-			}
-			
-			Write-Output "$mill rows imported in $([math]::round($secs,2)) seconds ($rs rows/sec and $rm rows/min)"	
+			# Close pools
+		if ($conn.State -eq "Open") { 
+			$conn.Close()
+			$conn.Dispose()
+			[System.Data.SqlClient.SqlConnection]::ClearAllPools()
 		}
-		# Close pools
-	if ($conn.State -eq "Open") { 
-		$conn.Close()
-		$conn.Dispose()
-		[System.Data.SqlClient.SqlConnection]::ClearAllPools()
 	}
-
-}
 }
